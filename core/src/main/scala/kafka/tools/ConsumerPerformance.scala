@@ -65,7 +65,7 @@ object ConsumerPerformance {
       val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](config.props)
       consumer.subscribe(Collections.singletonList(config.topic))
       startMs = System.currentTimeMillis
-      consume(consumer, List(config.topic), config.numMessages, 1000, config, totalMessagesRead, totalBytesRead, joinGroupTimeInMs, startMs)
+      consume(consumer, List(config.topic), config.numMessages, 10000000, config, totalMessagesRead, totalBytesRead, joinGroupTimeInMs, startMs)
       endMs = System.currentTimeMillis
 
       if (config.printMetrics) {
@@ -165,6 +165,11 @@ object ConsumerPerformance {
     var lastReportTime: Long = startMs
     var lastConsumedTime = System.currentTimeMillis
     var currentTimeMillis = lastConsumedTime
+    var minLatency = Long.MaxValue
+    var maxLatency = 0L
+
+
+    var totalRoundTripTimeMs = 0L
 
     while (messagesRead < count && currentTimeMillis - lastConsumedTime <= timeout) {
       val records = consumer.poll(100).asScala
@@ -178,14 +183,27 @@ object ConsumerPerformance {
         if (record.value != null)
           bytesRead += record.value.size
 
+        val recordTime = record.timestamp()
+        val wallTime = System.currentTimeMillis()
+        val roundTrip = wallTime - recordTime
+        minLatency = Math.min(roundTrip, minLatency)
+        maxLatency = Math.max(roundTrip, maxLatency)
+
+        totalRoundTripTimeMs += roundTrip
+
         if (currentTimeMillis - lastReportTime >= config.reportingInterval) {
           if (config.showDetailedStats)
             printNewConsumerProgress(0, bytesRead, lastBytesRead, messagesRead, lastMessagesRead,
-              lastReportTime, currentTimeMillis, config.dateFormat, joinTimeMsInSingleRound)
+              lastReportTime, currentTimeMillis, config.dateFormat, joinTimeMsInSingleRound, totalRoundTripTimeMs)
+          print("min: "+minLatency)
+          println(" max: "+maxLatency)
           joinTimeMsInSingleRound = 0L
           lastReportTime = currentTimeMillis
           lastMessagesRead = messagesRead
           lastBytesRead = bytesRead
+          totalRoundTripTimeMs = 0L
+          minLatency = Long.MaxValue
+          maxLatency = 0L
         }
       }
     }
@@ -214,9 +232,13 @@ object ConsumerPerformance {
                                startMs: Long,
                                endMs: Long,
                                dateFormat: SimpleDateFormat,
-                               periodicJoinTimeInMs: Long): Unit = {
+                               periodicJoinTimeInMs: Long,
+                               totalRoundTripTimeMs: Long): Unit = {
     printBasicProgress(id, bytesRead, lastBytesRead, messagesRead, lastMessagesRead, startMs, endMs, dateFormat)
     printExtendedProgress(bytesRead, lastBytesRead, messagesRead, lastMessagesRead, startMs, endMs, periodicJoinTimeInMs)
+    val messagesReadDelta = messagesRead - lastMessagesRead
+    val averageRoundTrip = totalRoundTripTimeMs / messagesReadDelta
+    print(" average round trip: " + averageRoundTrip + "ms")
     println()
   }
 
