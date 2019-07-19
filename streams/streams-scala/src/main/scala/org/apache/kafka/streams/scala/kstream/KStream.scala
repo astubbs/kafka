@@ -389,6 +389,14 @@ class KStream[K, V](val inner: KStreamJ[K, V]) {
     inner.groupByKey(grouped)
 
   /**
+
+   * Group by key, use default Serdes
+   *
+   * @see `org.apache.kafka.streams.kstream.KStream#groupByKey`
+   */
+  def groupByKey(): KGroupedStream[K, V] = inner.groupByKey()
+
+  /**
    * Group the records of this [[KStream]] on a new key that is selected using the provided key transformation function
    * and the `Grouped` instance.
    * <p>

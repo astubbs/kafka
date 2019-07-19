@@ -160,4 +160,80 @@ class KStreamTest extends FlatSpec with Matchers with TestDriver {
 
     testDriver.close()
   }
+
+  // can't test at the groupByKey level - have to convert to stream as per below?
+//  "group by key" should "use the default serdes" in {
+//    val builder = new StreamsBuilder()
+//    val sourceTopic1 = "source1"
+//    val sourceTopic2 = "source2"
+//    val sinkTopic = "sink"
+//
+//    import org.apache.kafka.streams.scala._
+//    import org.apache.kafka.streams.scala.kstream._
+//    import org.apache.kafka.streams.scala.Serdes._
+//
+//    val s1 = builder.stream[String, String](sourceTopic1)
+//    val s2 = builder.stream[String, String](sourceTopic2)
+//
+//    // explicit
+//    s1.merge(s2).groupByKey(Grouped.`with`(Serdes.String, Serdes.String)) // works
+//
+//    // implicit
+//    s1.merge(s2).groupByKey() // doesn't compile without change
+//
+//    val now = System.currentTimeMillis()
+//    val testDriver = createTestDriver(builder, now)
+//
+//    testDriver.pipeRecord(sourceTopic1, ("1", "topic1value1"), now)
+//    testDriver.pipeRecord(sourceTopic2, ("1", "topic2value2"), now)
+//
+//    testDriver.readRecord[String, String](sinkTopic).value shouldBe "topic1value1-topic2value1"
+//    testDriver.close()
+//  }
+//
+//  // can't test at the reduce level - have to convert to stream as per below?
+//  "reduce a merged stream" should "work" in {
+//    val builder = new StreamsBuilder()
+//
+//    val s1 = builder.stream[String, String]("s1")
+//    val s2 = builder.stream[String, String]("s2")
+//
+//    s1.merge(s2).groupByKey().reduce(_ + _)
+//  }
+
+  "groupby key, reduce, filter, tostream, to" should "work" in {
+    val builder = new StreamsBuilder()
+    val sourceTopic1 = "base-data"
+    val sourceTopic2 = "reg-data"
+    val sinkTopic = "sink"
+
+    val s1 = builder.stream[String, String](sourceTopic1)
+    val s2 = builder.stream[String, String](sourceTopic2)
+
+//    import org.apache.kafka.streams.scala.Serdes._
+    s1.merge(s2)
+      .groupByKey()
+      .reduce(_ + ", " + _)
+      .toStream
+      .filter((k, v) => v.contains("base-data"))
+      .to(sinkTopic)
+
+    val now = System.currentTimeMillis()
+    val testDriver = createTestDriver(builder, now)
+
+    testDriver.pipeRecord(sourceTopic1, ("A", "keyA-topic1-base-data"), now)
+    testDriver.pipeRecord(sourceTopic2, ("B", "keyB-topic2-reg-data"), now)
+    testDriver.pipeRecord(sourceTopic2, ("A", "keyA-topic2-reg-data"), now)
+    testDriver.pipeRecord(sourceTopic2, ("B", "keyB-topic1-base-data"), now)
+
+    val value1 = testDriver.readRecord[String, String](sinkTopic)
+    val value2 = testDriver.readRecord[String, String](sinkTopic)
+    val value3 = testDriver.readRecord[String, String](sinkTopic)
+
+    value1.value shouldBe "keyA-topic1-base-data"
+    value2.value shouldBe "keyA-topic1-base-data, keyA-topic2-reg-data"
+    value3.value shouldBe "keyB-topic2-reg-data, keyB-topic1-base-data"
+    testDriver.close()
+  }
+
 }
