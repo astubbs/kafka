@@ -19,6 +19,7 @@ package org.apache.kafka.common.network;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.errors.AuthenticationException;
+import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.memory.MemoryPool;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
@@ -228,7 +229,7 @@ public class Selector implements Selectable, AutoCloseable {
     }
 
     public Selector(long connectionMaxIdleMS, Metrics metrics, Time time, String metricGrpPrefix, ChannelBuilder channelBuilder, LogContext logContext) {
-        this(NetworkReceive.UNLIMITED, connectionMaxIdleMS, metrics, time, metricGrpPrefix, Collections.emptyMap(), true, channelBuilder, logContext);
+        this(NetworkReceive.REALISTIC_SIZE_LIMIT, connectionMaxIdleMS, metrics, time, metricGrpPrefix, Collections.emptyMap(), true, channelBuilder, logContext);
     }
 
     public Selector(long connectionMaxIdleMS, int failedAuthenticationDelayMs, Metrics metrics, Time time, String metricGrpPrefix, ChannelBuilder channelBuilder, LogContext logContext) {
@@ -616,6 +617,12 @@ public class Selector implements Selectable, AutoCloseable {
                         exceptionMessage = e.getCause().getMessage();
                     log.info("Failed {}authentication with {} ({})", isReauthentication ? "re-" : "",
                         desc, exceptionMessage);
+                } else if (e instanceof InvalidReceiveException) {
+                    // Warnings and errors should be printed, otherwise issues are silently swallowed
+                    System.out.println("Unexpected fatal error!");
+                     e.printStackTrace();
+                    // Exit gently instead?
+                    System.exit(1);
                 } else {
                     log.warn("Unexpected error from {}; closing connection", desc, e);
                 }

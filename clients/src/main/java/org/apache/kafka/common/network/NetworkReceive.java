@@ -20,6 +20,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ScatteringByteChannel;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.memory.MemoryPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ public class NetworkReceive implements Receive {
 
     public final static String UNKNOWN_SOURCE = "";
     public final static int UNLIMITED = -1;
+    public final static int REALISTIC_SIZE_LIMIT = ConsumerConfig.DEFAULT_FETCH_MAX_BYTES * 40;
     private static final Logger log = LoggerFactory.getLogger(NetworkReceive.class);
     private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
@@ -46,7 +48,7 @@ public class NetworkReceive implements Receive {
         this.source = source;
         this.buffer = buffer;
         this.size = null;
-        this.maxSize = UNLIMITED;
+        this.maxSize = REALISTIC_SIZE_LIMIT;
         this.memoryPool = MemoryPool.NONE;
     }
 
@@ -54,7 +56,7 @@ public class NetworkReceive implements Receive {
         this.source = source;
         this.size = ByteBuffer.allocate(4);
         this.buffer = null;
-        this.maxSize = UNLIMITED;
+        this.maxSize = REALISTIC_SIZE_LIMIT;
         this.memoryPool = MemoryPool.NONE;
     }
 
@@ -101,7 +103,7 @@ public class NetworkReceive implements Receive {
                 if (receiveSize < 0)
                     throw new InvalidReceiveException("Invalid receive (size = " + receiveSize + ")");
                 if (maxSize != UNLIMITED && receiveSize > maxSize)
-                    throw new InvalidReceiveException("Invalid receive (size = " + receiveSize + " larger than " + maxSize + ")");
+                    throw new InvalidReceiveException("Invalid receive (size = " + receiveSize + " larger than maximum allowed " + maxSize + ")");
                 requestedBufferSize = receiveSize; //may be 0 for some payloads (SASL)
                 if (receiveSize == 0) {
                     buffer = EMPTY_BUFFER;
