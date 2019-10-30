@@ -411,6 +411,11 @@ public class KafkaAdminClient extends AdminClient {
             List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(
                     config.getList(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG),
                     config.getString(AdminClientConfig.CLIENT_DNS_LOOKUP_CONFIG));
+            if (addresses.get(0).getPort() != 9092) {
+                // ideally, just note this down, and check this, only if we encounter a fatal connection error and print it out then.
+                System.out.println(
+                    "This isn't the default port for Kafka, are you sure you're using the correct port?");
+            }
             metadataManager.update(Cluster.bootstrap(addresses), time.milliseconds());
             List<MetricsReporter> reporters = config.getConfiguredInstances(AdminClientConfig.METRIC_REPORTER_CLASSES_CONFIG,
                 MetricsReporter.class,
